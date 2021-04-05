@@ -1,52 +1,57 @@
-import { BehaviorSubject, interval, merge, Observable, of, race, Subject } from 'rxjs';
-import { map, mapTo, scan, skip, switchMap, take, takeWhile, tap, throttleTime, withLatestFrom } from 'rxjs/operators';
+import { interval, merge, Observable, of } from 'rxjs';
+import { mapTo, scan, skip, switchMap, takeWhile } from 'rxjs/operators';
 import { Position } from '../contracts/position';
-import { substractVectors, v, Vector } from '../contracts/vector';
+import { Vector } from '../contracts/vector';
 
 export class Physics {
-  private readonly throttle = 50;
+  /** @todo the throttle should be refactored to central point. */
+  private readonly inertiaThrottleTime = 50;
+
+  /**
+   * Map vector stream with starting position to position stream with inertia.
+   */
+  public vectorToCorrectedPosition(input$: Observable<Vector>, startPosition: Position): Observable<Position> {
+    return this.vectorStreamToPositionStream(this.mapWithInertia(input$), startPosition);
+  }
 
   /**
    * Maps vector stream to have inertia.
    * Upon idling for more than throttle time inertia stream kicks in,
    * emiting vector halving stream.
    */
-  public mapWithInertia$(input$: Observable<Vector>): Observable<Vector> {
+  public mapWithInertia(input$: Observable<Vector>): Observable<Vector> {
     const inertia$ = this.vectorHalvingStream(input$);
-    return input$.pipe(switchMap((v) => merge(of(v), inertia$)));
+    return input$.pipe(switchMap((vector) => merge(of(vector), inertia$)));
   }
 
+  /**
+   * Transform vector observable to halving stream.
+   */
   public vectorHalvingStream(input$: Observable<Vector>): Observable<Vector> {
     return input$.pipe(
-      switchMap((inputVector) => interval(this.throttle).pipe(mapTo(inputVector))),
+      switchMap((inputVector) => interval(this.inertiaThrottleTime).pipe(mapTo(inputVector))),
       scan((acc, _) => this.reduceVectorDelta(acc, 2)),
-      takeWhile((reducedVector) => this.isCombinedVectorDeltaAbove(reducedVector, 0)),
-      skip(1)
+      takeWhile((decreasedVector) => this.isCombinedVectorDeltaAbove(decreasedVector, 0)),
+      skip(1),  // Skip initial emit, this is the original non-halved value.
     );
   }
 
   public isCombinedVectorDeltaAbove(input: Vector, limit: number): boolean {
     return Math.abs(input.dx) > limit && Math.abs(input.dy) > limit;
   }
-  /**
-   * Maps Vector stream to Position stream
-   */
-  public vectorToPosition$(movement$: Observable<Vector>, startPosition: Position): Observable<Position> {
-    // Required for backfeeding previous position to apply vectorToMatrixMovement on.
-    const previous$: Subject<Position> = new BehaviorSubject(startPosition);
 
-    return movement$.pipe(
-      withLatestFrom(previous$),
-      map((pair) => this.vectorToMovement(...pair)),
-      tap((pos) => previous$.next(pos)),
-      throttleTime(this.throttle),
+  public vectorStreamToPositionStream(input$: Observable<Vector>, startPosition: Position): Observable<Position> {
+    return input$.pipe(
+      scan((acc: Position, value: Vector) => {
+        return this.vectorToPosition(value, acc);
+      }, startPosition),
     );
   }
 
-  private vectorToMovement(v: Vector, p: Position): Position {
+  private vectorToPosition(inputVector: Vector, previousPosition: Position): Position {
     return {
-      x: p.x + v.dx,
-      y: p.y + v.dy,
+      x: inputVector.dx + previousPosition.x,
+      y: inputVector.dy + previousPosition.y,
     };
   }
 
@@ -57,17 +62,6 @@ export class Physics {
     return {
       dx: Math.floor((input.dx / strength) * decimalCorrection) / decimalCorrection,
       dy: Math.floor((input.dy / strength) * decimalCorrection) / decimalCorrection,
-    };
-  }
-
-  /**
-   * Substract vector 1 by vector 2 limiting delta by 0.
-   */
-  public substractVectorsWithZeroLimit(targetVector: Vector, substractedVector: Vector): Vector {
-    const substracted = substractVectors(targetVector, substractedVector);
-    return {
-      dx: substracted.dx > 0 === targetVector.dx > 0 ? substracted.dx : 0,
-      dy: substracted.dy > 0 === targetVector.dy > 0 ? substracted.dy : 0,
     };
   }
 }

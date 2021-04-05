@@ -24,7 +24,7 @@ export class CanvasComponent implements AfterViewInit {
     const animatedChar = new AnimatedCharacter('sprite-map');
 
     const physics = new Physics();
-    physics.mapWithInertia$(characterMovement.movement$);
+    physics.mapWithInertia(characterMovement.movement$);
     // const characterPosition$ = physics.vectorToPosition$(characterMovement.movement$, {x: 0, y: 0});
     // const positionableChar$ = combineLatest([animatedChar.image, characterPosition$]).pipe(map(pair => ({image: pair[0], pos: pair[1]})));
 
