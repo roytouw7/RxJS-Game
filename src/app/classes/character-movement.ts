@@ -9,7 +9,6 @@ export class CharacterMovement extends MassMovement {
   private readonly forceLimit = 15;
   private readonly acceleration = 1;
   public readonly movement$: Observable<Vector>;
-  private inertia$: Observable<Vector>;
 
   constructor(keys$: Observable<Keys>) {
     super(CharacterMovement.mass);

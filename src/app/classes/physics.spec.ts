@@ -76,6 +76,34 @@ describe('Physics', () => {
     });
   });
 
+  it('massCorrectedDelta should return corrected vector between two vectors according to given mass', () => {
+    // Previous vector, next vector, mass, expected output vector.
+    const testSet: [Vector, Vector, number, Vector][] = [
+      [v(1, 1), v(2, 2), 50, v(1.4, 1.4)],
+      [v(2, 2), v(4, 4), 50, v(2.8, 2.8)],
+      [v(2, 2), v(4, 4), 25, v(3.14, 3.14)],
+    ];
+
+    testSet.map((test) => {
+      const [previous, next, mass, expectedOutput] = test;
+      expect(physics.massCorrectedDelta(previous, next, mass)).toEqual(expectedOutput);
+    });
+  });
+
+  it('mapWithMassDelay should transform a vector stream to mass corrected vector stream', (done) => {
+    const mass = 50;
+    const vectorInput$ = from([v(2, 2), v(2, 2), v(2, 2)]);
+    const expectedOutput = [v(0.8, 0.8), v(1.28, 1.28), v(1.56, 1.56)];
+
+    let emissionCounter = 0;
+    physics.mapWithMassDelay(vectorInput$, mass).subscribe({next: vector => {
+      expect(vector).toEqual(expectedOutput[emissionCounter++]);
+    }, complete: () => {
+      expect(emissionCounter).toBe(expectedOutput.length);
+      done();
+    }});
+  });
+
   it('vectorToCorrectedPosition should transform vector stream to corrected position stream', (done) => {
     const vectorInput$ = from([v(1, 1), v(1, 1), v(2, 2)]);
     const startPosition = p(0, 0);

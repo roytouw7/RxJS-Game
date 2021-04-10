@@ -1,10 +1,10 @@
 import { interval, merge, Observable, of } from 'rxjs';
 import { mapTo, scan, skip, switchMap, takeWhile } from 'rxjs/operators';
 import { Position } from '../contracts/position';
-import { Vector } from '../contracts/vector';
+import { addVectors, divideVector, substractVectors, v, Vector } from '../contracts/vector';
 
 export class Physics {
-  /** @todo the throttle should be refactored to central point. */
+  /** @todo the throttle should be refactored to central point, preferable it's own stream. */
   private readonly inertiaThrottleTime = 50;
 
   /**
@@ -24,6 +24,32 @@ export class Physics {
     return input$.pipe(switchMap((vector) => merge(of(vector), inertia$)));
   }
 
+  public mapWithMassDelay(input$: Observable<Vector>, mass: number): Observable<Vector> {
+    const startingVector = v(0, 0);
+
+    return input$.pipe(
+      scan((acc, value) => {
+        return this.massCorrectedDelta(acc, value, mass);
+      }, startingVector),
+    );
+  }
+
+  /**
+   * Limits delta between two vectors according to given mass.
+   */
+  public massCorrectedDelta(previous: Vector, next: Vector, mass: number): Vector {
+    if (mass < 0 || mass > 100) {
+      throw new Error('Mass should be a value between 0 and 100!');
+    }
+    const divisor = 1 + mass * 0.03;
+    const result = addVectors(divideVector(substractVectors(next, previous), divisor), previous);
+
+    return {
+      dx: Math.floor(result.dx * 100) / 100,
+      dy: Math.floor(result.dy * 100) / 100,
+    };
+  }
+
   /**
    * Transform vector observable to halving stream.
    */
@@ -32,7 +58,7 @@ export class Physics {
       switchMap((inputVector) => interval(this.inertiaThrottleTime).pipe(mapTo(inputVector))),
       scan((acc, _) => this.reduceVectorDelta(acc, 2)),
       takeWhile((decreasedVector) => this.isCombinedVectorDeltaAbove(decreasedVector, 0)),
-      skip(1),  // Skip initial emit, this is the original non-halved value.
+      skip(1), // Skip initial emit, this is the original non-halved value.
     );
   }
 

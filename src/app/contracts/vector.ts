@@ -21,6 +21,13 @@ export const substractVectors = (v1: Vector, v2: Vector): Vector => {
   };
 };
 
+export const divideVector = (input: Vector, division: number): Vector => {
+  return {
+    dx: input.dx / division,
+    dy: input.dy / division,
+  };
+};
+
 export const limitDelta = (v: Vector, limit: number): Vector => {
   const dx = Math.abs(v.dx) >= limit ? (v.dx > 0 ? limit : -limit) : v.dx;
   const dy = Math.abs(v.dy) >= limit ? (v.dy > 0 ? limit : -limit) : v.dy;
